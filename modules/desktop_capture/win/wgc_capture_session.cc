@@ -188,6 +188,7 @@ HRESULT WgcCaptureSession::StartCapture(const DesktopCaptureOptions& options) {
     }
   }
 
+#if 0
   // By default, the WGC capture API adds a yellow border around the captured
   // window or display to indicate that a capture is in progress. The section
   // below is an attempt to remove this yellow border to make the capture
@@ -199,6 +200,7 @@ HRESULT WgcCaptureSession::StartCapture(const DesktopCaptureOptions& options) {
           &session3))) {
     session3->put_IsBorderRequired(false);
   }
+#endif
 
   allow_zero_hertz_ = options.allow_wgc_zero_hertz();
 

@@ -182,6 +182,11 @@ class RTC_EXPORT DesktopCapturer {
   static std::unique_ptr<DesktopCapturer> CreateWindowCapturer(
       const DesktopCaptureOptions& options);
 
+  // Creates a DesktopCapturer instance which targets to capture windows.
+  static std::unique_ptr<DesktopCapturer> CreateWindowCapturer(
+      const DesktopCaptureOptions& options,
+      bool* usedWgc);
+
   // Creates a DesktopCapturer instance which targets to capture screens.
   static std::unique_ptr<DesktopCapturer> CreateScreenCapturer(
       const DesktopCaptureOptions& options);
