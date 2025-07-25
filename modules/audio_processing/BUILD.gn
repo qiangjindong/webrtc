@@ -164,6 +164,11 @@ rtc_library("audio_processing") {
     "gain_control_impl.h",
     "render_queue_item_verifier.h",
   ]
+  libs = [
+    "rnnoise.lib",
+    "samplerate.lib",
+  ]
+  lib_dirs = [ "lib" ]
 
   defines = []
   deps = [

@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -714,7 +715,23 @@ AudioProcessingImpl::AudioProcessingImpl(
   Initialize();
 }
 
-AudioProcessingImpl::~AudioProcessingImpl() = default;
+AudioProcessingImpl::~AudioProcessingImpl() {
+  if (rnn_state_) {
+    RTC_LOG(LS_INFO) << "[QJD] Rnnoise destory" << upsampler_;
+    rnnoise_destroy(rnn_state_);
+    rnn_state_ = nullptr;
+  }
+  if (upsampler_) {
+    RTC_LOG(LS_INFO) << "[QJD] Upsampler destory" << upsampler_;
+    src_delete(upsampler_);
+    upsampler_ = nullptr;
+  }
+  if (downsampler_) {
+    RTC_LOG(LS_INFO) << "[QJD] Downsampler destory" << upsampler_;
+    src_delete(downsampler_);
+    downsampler_ = nullptr;
+  }
+}
 
 int AudioProcessingImpl::Initialize() {
   // Run in a single-threaded manner during initialization.
@@ -1456,6 +1473,12 @@ void AudioProcessingImpl::EmptyQueuedRenderAudioLocked() {
   }
 }
 
+static int s_rnnoise_enable = 0;
+
+void AudioProcessingImpl::SetRnnoiseEnable(int enable) {
+  s_rnnoise_enable = enable;
+}
+
 int AudioProcessingImpl::ProcessStream(const int16_t* const src,
                                        const StreamConfig& input_config,
                                        const StreamConfig& output_config,
@@ -1485,6 +1508,91 @@ int AudioProcessingImpl::ProcessStream(const int16_t* const src,
     } else {
       capture_.capture_audio->CopyTo(output_config, dest);
     }
+  }
+
+  if (s_rnnoise_enable) {
+//#define TEST_WRITE_PCM_FILE
+#ifdef TEST_WRITE_PCM_FILE
+    // 将源数据写入文件
+    std::ofstream src_pcm("C:\\Users\\dell\\Desktop\\src.pcm",
+                          std::ios::binary | std::ios::app);
+    if (src_pcm.is_open()) {
+      size_t size = input_config.num_samples() * sizeof(int16_t);
+      src_pcm.write(reinterpret_cast<const char*>(dest), size);
+    }
+#endif
+
+    if (!rnn_state_) {
+      RTC_LOG(LS_INFO) << "[QJD] initial rnnoise\n";
+      rnn_state_ = rnnoise_create(nullptr);
+    }
+    if (!upsampler_) {
+      RTC_LOG(LS_INFO) << "[QJD] initial upsampler\n";
+      upsampler_ = src_new(SRC_SINC_FASTEST, 1, nullptr);
+    }
+    if (!downsampler_) {
+      RTC_LOG(LS_INFO) << "[QJD] initial downsampler\n";
+      downsampler_ = src_new(SRC_SINC_FASTEST, 1, nullptr);
+    }
+
+    size_t frame_size = input_config.num_samples();
+    RTC_LOG(LS_INFO) << "[QJD] frame size: " << frame_size << "\n";
+
+    std::vector<float> up_input;
+    float up_output[rnn_frame_size] = {};
+
+    up_input.reserve(frame_size);
+    for (size_t i = 0; i < frame_size; ++i)
+      up_input.emplace_back(static_cast<float>(dest[i]));
+
+    // 使用libsamplerate重采样至48khz
+    up_data_.data_in = up_input.data();
+    up_data_.data_out = up_output;
+    up_data_.input_frames = static_cast<long>(frame_size);
+    up_data_.output_frames = rnn_frame_size;
+    up_data_.src_ratio = static_cast<double>(rnn_frame_size) / frame_size;
+    up_data_.end_of_input = 0;
+    RTC_LOG(LS_INFO) << "[QJD] Up-sample process... " << upsampler_ << "\n ";
+    int error = src_process(upsampler_, &up_data_);
+    if (error)
+      RTC_LOG(LS_INFO) << "[QJD] Up-sample error: " << src_strerror(error);
+
+    // 使用rnnoise降噪处理
+    long up_frames_gen = up_data_.output_frames_gen;
+    RTC_LOG(LS_INFO) << "[QJD] Up-sample output_frames_gen: " << up_frames_gen;
+    if (up_data_.output_frames_gen > 0) {
+      RTC_LOG(LS_INFO) << "[QJD] Rnnoise process... " << rnn_state_;
+      rnnoise_process_frame(rnn_state_, up_output, up_output);
+    }
+
+    // 重采样至16khz
+    down_data_.data_in = up_output;
+    down_data_.data_out = up_input.data();
+    down_data_.input_frames = up_data_.output_frames_gen;
+    down_data_.output_frames = static_cast<long>(frame_size);
+    down_data_.src_ratio = static_cast<double>(frame_size) / rnn_frame_size;
+    down_data_.end_of_input = 0;
+    RTC_LOG(LS_INFO) << "[QJD] Down-sample process... " << downsampler_;
+    error = src_process(downsampler_, &down_data_);
+    if (error)
+      RTC_LOG(LS_INFO) << "[QJD] Down-sample error: " << src_strerror(error);
+
+    // 写入dest
+    size_t down_frames_gen = static_cast<size_t>(down_data_.output_frames_gen);
+    RTC_LOG(LS_INFO) << "[QJD] Down-sample output_frames_gen: "
+                     << down_frames_gen;
+    for (size_t i = 0; i < down_frames_gen; ++i)
+      dest[i] = static_cast<int16_t>(up_input[i]);
+
+#ifdef TEST_WRITE_PCM_FILE
+    // 将处理后的数据写入文件
+    std::ofstream process_pcm("C:\\Users\\dell\\Desktop\\process.pcm",
+                              std::ios::binary | std::ios::app);
+    if (process_pcm.is_open()) {
+      size_t size = output_config.num_samples() * sizeof(int16_t);
+      process_pcm.write(reinterpret_cast<const char*>(dest), size);
+    }
+#endif
   }
 
   if (aec_dump_) {
@@ -1629,7 +1737,7 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
       return AudioProcessing::kStreamParameterNotSetError;
     }
 
-    if (submodules_.noise_suppressor) {
+    if (submodules_.noise_suppressor && !s_rnnoise_enable) {
       submodules_.noise_suppressor->Process(capture_buffer);
     }
 
@@ -1652,7 +1760,7 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
       submodules_.noise_suppressor->Analyze(*linear_aec_buffer);
     }
 
-    if (submodules_.noise_suppressor) {
+    if (submodules_.noise_suppressor && !s_rnnoise_enable) {
       submodules_.noise_suppressor->Process(capture_buffer);
     }
   }
@@ -2384,9 +2492,12 @@ void AudioProcessingImpl::InitializeGainController2() {
 
 void AudioProcessingImpl::InitializeVoiceActivityDetector() {
   if (!UseApmVadSubModule(config_, gain_controller2_experiment_params_)) {
+    RTC_LOG(LS_INFO) << "[QJD] vad disabled\n";
     submodules_.voice_activity_detector.reset();
     return;
   }
+
+  RTC_LOG(LS_INFO) << "[QJD] vad enabled\n";
 
   if (!submodules_.voice_activity_detector) {
     RTC_DCHECK(!!submodules_.gain_controller2);
