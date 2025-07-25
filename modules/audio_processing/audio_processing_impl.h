@@ -43,6 +43,8 @@
 #include "modules/audio_processing/optionally_built_submodule_creators.h"
 #include "modules/audio_processing/render_queue_item_verifier.h"
 #include "modules/audio_processing/rms_level.h"
+#include "modules/audio_processing/rnnoise.h"
+#include "modules/audio_processing/samplerate.h"
 #include "modules/audio_processing/transient/transient_suppressor.h"
 #include "rtc_base/gtest_prod_util.h"
 #include "rtc_base/swap_queue.h"
@@ -599,6 +601,15 @@ class AudioProcessingImpl : public AudioProcessing {
       agc_render_signal_queue_;
   std::unique_ptr<SwapQueue<std::vector<float>, RenderQueueItemVerifier<float>>>
       red_render_signal_queue_;
+
+  DenoiseState* rnn_state_ = nullptr;
+  static constexpr uint16_t rnn_frame_size = 480;
+  SRC_STATE* upsampler_ = nullptr;
+  SRC_STATE* downsampler_ = nullptr;
+  SRC_DATA up_data_, down_data_;
+
+ public:
+  static void SetRnnoiseEnable(int enable);
 };
 
 }  // namespace webrtc
