@@ -729,6 +729,9 @@ class RTC_EXPORT AudioProcessing : public rtc::RefCountInterface {
   // clock drift effect which impacts the performance of (for example) echo
   // cancellation.
   static int GetFrameSize(int sample_rate_hz) { return sample_rate_hz / 100; }
+
+public:
+  static void SetRnnoiseEnable(int enable);
 };
 
 class RTC_EXPORT AudioProcessingBuilder {

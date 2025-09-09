@@ -605,8 +605,8 @@ class AudioProcessingImpl : public AudioProcessing {
   SRC_STATE* downsampler_ = nullptr;
   SRC_DATA up_data_, down_data_;
 
- public:
-  static void SetRnnoiseEnable(int enable);
+//  public:
+//   static void SetRnnoiseEnable(int enable);
 };
 
 }  // namespace webrtc

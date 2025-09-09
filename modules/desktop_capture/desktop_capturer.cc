@@ -63,34 +63,13 @@ bool DesktopCapturer::IsOccluded(const DesktopVector& pos) {
 
 // static
 std::unique_ptr<DesktopCapturer> DesktopCapturer::CreateWindowCapturer(
-    const DesktopCaptureOptions& options) {
-#if defined(RTC_ENABLE_WIN_WGC)
-  if (options.allow_wgc_capturer() && IsWgcSupported(CaptureType::kWindow)) {
-    return WgcCapturerWin::CreateRawWindowCapturer(options);
-  }
-#endif  // defined(RTC_ENABLE_WIN_WGC)
-
-#if defined(WEBRTC_WIN)
-  if (options.allow_cropping_window_capturer()) {
-    return CroppingWindowCapturer::CreateCapturer(options);
-  }
-#endif  // defined(WEBRTC_WIN)
-
-  std::unique_ptr<DesktopCapturer> capturer = CreateRawWindowCapturer(options);
-  if (capturer && options.detect_updated_region()) {
-    capturer.reset(new DesktopCapturerDifferWrapper(std::move(capturer)));
-  }
-
-  return capturer;
-}
-
-// static
-std::unique_ptr<DesktopCapturer> DesktopCapturer::CreateWindowCapturer(
-    const DesktopCaptureOptions& options, bool* usedWgc) {
+    const DesktopCaptureOptions& options, bool* out_used_wgc) {
 #if defined(RTC_ENABLE_WIN_WGC)
   if (options.allow_wgc_window_capturer() &&
       IsWgcSupported(CaptureType::kWindow)) {
-    *usedWgc = true;
+    if (out_used_wgc) {
+      *out_used_wgc = true;
+    }
     return WgcCapturerWin::CreateRawWindowCapturer(options);
   }
 #endif  // defined(RTC_ENABLE_WIN_WGC)
