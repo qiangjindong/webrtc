@@ -65,8 +65,7 @@ bool DesktopCapturer::IsOccluded(const DesktopVector& pos) {
 std::unique_ptr<DesktopCapturer> DesktopCapturer::CreateWindowCapturer(
     const DesktopCaptureOptions& options, bool* out_used_wgc) {
 #if defined(RTC_ENABLE_WIN_WGC)
-  if (options.allow_wgc_window_capturer() &&
-      IsWgcSupported(CaptureType::kWindow)) {
+  if (options.allow_wgc_capturer() && IsWgcSupported(CaptureType::kWindow)) {
     if (out_used_wgc) {
       *out_used_wgc = true;
     }
