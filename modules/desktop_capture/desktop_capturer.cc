@@ -26,6 +26,8 @@
 #include "rtc_base/win/windows_version.h"
 #endif  // defined(RTC_ENABLE_WIN_WGC)
 
+#include "modules/desktop_capture/win/screen_capturer_win_magnifier.h"
+
 namespace webrtc {
 
 void LogDesktopCapturerFullscreenDetectorUsage() {
@@ -95,8 +97,7 @@ std::unique_ptr<DesktopCapturer> DesktopCapturer::CreateScreenCapturer(
     return WgcCapturerWin::CreateRawScreenCapturer(options);
   }
 #endif  // defined(RTC_ENABLE_WIN_WGC)
-
-  std::unique_ptr<DesktopCapturer> capturer = CreateRawScreenCapturer(options);
+  std::unique_ptr<DesktopCapturer> capturer = std::make_unique<ScreenCapturerWinMagnifier>();
   if (capturer && options.detect_updated_region()) {
     capturer.reset(new DesktopCapturerDifferWrapper(std::move(capturer)));
   }
