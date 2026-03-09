@@ -731,7 +731,9 @@ class RTC_EXPORT AudioProcessing : public RefCountInterface {
   static int GetFrameSize(int sample_rate_hz) { return sample_rate_hz / 100; }
 
 public:
+#if defined(WEBRTC_WIN)
   static void SetRnnoiseEnable(int enable);
+#endif  // defined(WEBRTC_WIN)
 };
 
 class RTC_EXPORT AudioProcessingBuilder {

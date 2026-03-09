@@ -718,6 +718,7 @@ AudioProcessingImpl::AudioProcessingImpl(
 }
 
 AudioProcessingImpl::~AudioProcessingImpl() {
+#if defined(WEBRTC_WIN)
   if (rnn_state_) {
     RTC_LOG(LS_INFO) << "[QJD] Rnnoise destory";
     rnnoise_destroy(rnn_state_);
@@ -733,6 +734,7 @@ AudioProcessingImpl::~AudioProcessingImpl() {
     src_delete(downsampler_);
     downsampler_ = nullptr;
   }
+#endif  // defined(WEBRTC_WIN)
 }
 
 int AudioProcessingImpl::Initialize() {
@@ -1475,12 +1477,16 @@ void AudioProcessingImpl::EmptyQueuedRenderAudioLocked() {
   }
 }
 
+#if defined(WEBRTC_WIN)
 static std::atomic<int> g_rnnoise_enable = 0;
 static int g_last_rnnoise_enable = 0;
+#endif  // defined(WEBRTC_WIN)
 
+#if defined(WEBRTC_WIN)
 void AudioProcessing::SetRnnoiseEnable(int enable) {
   g_rnnoise_enable = enable;
 }
+#endif  // defined(WEBRTC_WIN)
 
 int AudioProcessingImpl::ProcessStream(const int16_t* const src,
                                        const StreamConfig& input_config,
@@ -1488,12 +1494,14 @@ int AudioProcessingImpl::ProcessStream(const int16_t* const src,
                                        int16_t* const dest) {
   TRACE_EVENT0("webrtc", "AudioProcessing::ProcessStream_AudioFrame");
 
+#if defined(WEBRTC_WIN)
   if (g_last_rnnoise_enable != g_rnnoise_enable) {
     AudioProcessing::Config new_config = config_;
     new_config.noise_suppression.enabled = !g_rnnoise_enable;
     ApplyConfig(new_config);
     g_last_rnnoise_enable = g_rnnoise_enable;
-  }                                     
+  }
+#endif  // defined(WEBRTC_WIN)                                     
 
   RETURN_ON_ERR(
       HandleUnsupportedAudioFormats(src, input_config, output_config, dest));
@@ -1520,6 +1528,7 @@ int AudioProcessingImpl::ProcessStream(const int16_t* const src,
     }
   }
 
+#if defined(WEBRTC_WIN)
   if (g_rnnoise_enable) {
     if (!rnn_state_) {
       RTC_LOG(LS_INFO) << "[QJD] initial rnnoise\n";
@@ -1577,6 +1586,7 @@ int AudioProcessingImpl::ProcessStream(const int16_t* const src,
     for (size_t i = 0; i < down_frames_gen; ++i)
       dest[i] = static_cast<int16_t>(up_input[i]);
   }
+#endif  // defined(WEBRTC_WIN)
 
   if (aec_dump_) {
     RecordProcessedCaptureStream(dest, output_config);
@@ -1720,9 +1730,15 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
       return AudioProcessing::kStreamParameterNotSetError;
     }
 
+#if defined(WEBRTC_WIN)
     if (submodules_.noise_suppressor && !g_rnnoise_enable) {
       submodules_.noise_suppressor->Process(capture_buffer);
     }
+#else
+    if (submodules_.noise_suppressor) {
+      submodules_.noise_suppressor->Process(capture_buffer);
+    }
+#endif  // defined(WEBRTC_WIN)
 
     RETURN_ON_ERR(submodules_.echo_control_mobile->ProcessCaptureAudio(
         capture_buffer, stream_delay_ms()));
@@ -1743,9 +1759,15 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
       submodules_.noise_suppressor->Analyze(*linear_aec_buffer);
     }
 
+#if defined(WEBRTC_WIN)
     if (submodules_.noise_suppressor && !g_rnnoise_enable) {
       submodules_.noise_suppressor->Process(capture_buffer);
     }
+#else
+    if (submodules_.noise_suppressor) {
+      submodules_.noise_suppressor->Process(capture_buffer);
+    }
+#endif  // defined(WEBRTC_WIN)
   }
 
   if (submodules_.agc_manager) {
