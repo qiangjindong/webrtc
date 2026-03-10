@@ -51,6 +51,7 @@
 #include <errno.h>
 
 #include <atomic>
+#include <memory>
 #include <sstream>  // no-presubmit-check TODO(webrtc:8982)
 #include <string>
 #include <type_traits>
@@ -300,6 +301,12 @@ inline Val<LogArgType::kStringView, const absl::string_view*> MakeVal(
 
 inline Val<LogArgType::kVoidP, const void*> MakeVal(const void* x) {
   return {x};
+}
+
+template <typename T, typename D>
+inline Val<LogArgType::kVoidP, const void*> MakeVal(
+    const std::unique_ptr<T, D>& x) {
+  return {x.get()};
 }
 
 inline Val<LogArgType::kLogMetadata, LogMetadata> MakeVal(
