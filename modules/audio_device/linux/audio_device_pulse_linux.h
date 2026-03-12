@@ -248,7 +248,7 @@ class AudioDeviceLinuxPulse : public AudioDeviceGeneric {
 
   int32_t CheckPulseAudioVersion();
   int32_t InitSamplingFrequency();
-  int32_t GetDefaultDeviceInfo(bool recDevice, char* name, uint16_t& index);
+  int32_t GetDefaultDeviceInfo(bool recDevice, char* name, uint16_t& index, char* guid = NULL);
   int32_t InitPulseAudio();
   int32_t TerminatePulseAudio();
 
@@ -309,6 +309,8 @@ class AudioDeviceLinuxPulse : public AudioDeviceGeneric {
   char* _recDeviceName;
   char* _playDisplayDeviceName;
   char* _recDisplayDeviceName;
+  char* _playDeviceGuid;
+  char* _recDeviceGuid;
   char _paServerVersion[32];
 
   int8_t* _playBuffer;

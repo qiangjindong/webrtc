@@ -59,6 +59,8 @@ AudioDeviceLinuxPulse::AudioDeviceLinuxPulse()
       _recDeviceName(NULL),
       _playDisplayDeviceName(NULL),
       _recDisplayDeviceName(NULL),
+      _playDeviceGuid(NULL),
+      _recDeviceGuid(NULL),
       _playBuffer(NULL),
       _playbackBufferSize(0),
       _playbackBufferUnused(0),
@@ -704,19 +706,21 @@ int32_t AudioDeviceLinuxPulse::PlayoutDeviceName(
   // Check if default device
   if (index == 0) {
     uint16_t deviceIndex = 0;
-    return GetDefaultDeviceInfo(false, name, deviceIndex);
+    return GetDefaultDeviceInfo(false, name, deviceIndex, guid);
   }
 
   // Tell the callback that we want
   // The name for this device
   _playDisplayDeviceName = name;
+  _playDeviceGuid = guid;
   _deviceIndex = index;
 
   // get playout devices
   PlayoutDevices();
 
-  // clear device name and index
+  // clear device name, guid and index
   _playDisplayDeviceName = NULL;
+  _playDeviceGuid = NULL;
   _deviceIndex = -1;
 
   return 0;
@@ -742,19 +746,21 @@ int32_t AudioDeviceLinuxPulse::RecordingDeviceName(
   // Check if default device
   if (index == 0) {
     uint16_t deviceIndex = 0;
-    return GetDefaultDeviceInfo(true, name, deviceIndex);
+    return GetDefaultDeviceInfo(true, name, deviceIndex, guid);
   }
 
   // Tell the callback that we want
   // the name for this device
   _recDisplayDeviceName = name;
+  _recDeviceGuid = guid;
   _deviceIndex = index;
 
   // Get recording devices
   RecordingDevices();
 
-  // Clear device name and index
+  // Clear device name, guid and index
   _recDisplayDeviceName = NULL;
+  _recDeviceGuid = NULL;
   _deviceIndex = -1;
 
   return 0;
@@ -1350,6 +1356,11 @@ void AudioDeviceLinuxPulse::PaSinkInfoCallbackHandler(const pa_sink_info* i,
       strncpy(_playDisplayDeviceName, i->description, kAdmMaxDeviceNameSize);
       _playDisplayDeviceName[kAdmMaxDeviceNameSize - 1] = '\0';
     }
+    if (_playDeviceGuid) {
+      // Copy the PA device name as GUID
+      strncpy(_playDeviceGuid, i->name, kAdmMaxGuidSize);
+      _playDeviceGuid[kAdmMaxGuidSize - 1] = '\0';
+    }
   }
 
   _numPlayDevices++;
@@ -1378,6 +1389,11 @@ void AudioDeviceLinuxPulse::PaSourceInfoCallbackHandler(const pa_source_info* i,
         // Copy the source display name
         strncpy(_recDisplayDeviceName, i->description, kAdmMaxDeviceNameSize);
         _recDisplayDeviceName[kAdmMaxDeviceNameSize - 1] = '\0';
+      }
+      if (_recDeviceGuid) {
+        // Copy the PA device name as GUID
+        strncpy(_recDeviceGuid, i->name, kAdmMaxGuidSize);
+        _recDeviceGuid[kAdmMaxGuidSize - 1] = '\0';
       }
     }
 
@@ -1470,7 +1486,8 @@ int32_t AudioDeviceLinuxPulse::InitSamplingFrequency() {
 
 int32_t AudioDeviceLinuxPulse::GetDefaultDeviceInfo(bool recDevice,
                                                     char* name,
-                                                    uint16_t& index) {
+                                                    uint16_t& index,
+                                                    char* guid) {
   char tmpName[kAdmMaxDeviceNameSize] = {0};
   // subtract length of "default: "
   uint16_t nameLen = kAdmMaxDeviceNameSize - 9;
@@ -1486,8 +1503,10 @@ int32_t AudioDeviceLinuxPulse::GetDefaultDeviceInfo(bool recDevice,
   // the name for this device
   if (recDevice) {
     _recDisplayDeviceName = tmpName;
+    _recDeviceGuid = guid;
   } else {
     _playDisplayDeviceName = tmpName;
+    _playDeviceGuid = guid;
   }
 
   // Set members
@@ -1527,9 +1546,18 @@ int32_t AudioDeviceLinuxPulse::GetDefaultDeviceInfo(bool recDevice,
     strncpy(pName, tmpName, nameLen);
   }
 
+  // For default device, if guid wasn't set by the callback
+  // (e.g. monitor source filtered out), use the PA device name directly
+  if (guid && guid[0] == '\0') {
+    strncpy(guid, tmpName, kAdmMaxGuidSize);
+    guid[kAdmMaxGuidSize - 1] = '\0';
+  }
+
   // Clear members
   _playDisplayDeviceName = NULL;
   _recDisplayDeviceName = NULL;
+  _playDeviceGuid = NULL;
+  _recDeviceGuid = NULL;
   _paDeviceIndex = -1;
   _deviceIndex = -1;
   _numPlayDevices = 0;
